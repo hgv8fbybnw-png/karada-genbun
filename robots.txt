@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://karada-genbun.com/sitemap.xml

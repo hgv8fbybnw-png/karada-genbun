@@ -1,0 +1,714 @@
+@charset "utf-8";
+/* ============================================================================
+   からだの原文 ／ KARADA NO GENBUN
+   体づくりと美容について語られている数字とことばを、法令と公的資料の原文まで
+   さかのぼって、出どころつきで写しておく場所。
+
+   ■ 見本（https://kagkas.com/ ・2026-09-13 に実際に開いて実測）から持ち帰った3つ
+     ① 余白の刻み … 4px刻み（実測で75%を説明）。主音 40px、小 8/16/32、章間 120/200
+     ② 級数の比率 … 隣り合う比の中央値 1.225 ／ 7段（実測 12/14/16/20/24/30/40）
+     ③ 1行の長さ … 本文16px・行間48px（＝2.0）・字間0.1em・欄幅520px ＝ 全角32.5字
+   ■ 持ち帰っていないもの … 見本の色・書体・写真・文章・ロゴ（1つも使っていない）
+
+   ■ こちらの実装値（②③を、自分の値に置きかえたもの）
+     級数 … 本文16.5px を基準に、見出しは clamp の最小:最大＝1:1.5 で5段
+             （表題 86.4→129.6 ／ h1 30.4→45.6 ／ h2 24.8→37.2
+               ／ h3 20.2→30.3 ／ h4 17.6→26.4）
+     1行 … 本文16.5px・行間2.0・字間0.08em・欄幅34em（561px）＝ 全角約31.5字
+     余白 … 4/8/16/24/32/40/60/80/120/200px の10段（すべて4の倍数）
+
+   ■ 配色（自前・役割名つき。数値は HSL の実測）
+     主役 菖蒲 #6A3C9E （H268 S45% L43%）… このサイトが「写す」ことの印
+     受け 若苗 #6C8C1F （H78  S64% L34%）… からだの側
+     注意 樺  #B2471C （H17  S73% L40%）… ただし書き・条件
+     分類 浅葱 #2B6E7D （H191 S49% L33%）… 図の中の4本目（役割は「分類」1つ）
+     地  紙 #F1EFE9（H45 S22% L93%）／ 薄 #E9E5DC（H42 S23% L89%）
+         暗い面 #1B1A22（H248 S13% L12%）
+     面積の階層：塗り面積の1位は菖蒲。2位が出るページでも7倍以上の差がある（R-03②）
+
+   ■ 数えた結果（2026-09-13 時点の実装）
+     box-shadow 0件 ／ 角丸は円（50%）3件のみ ／ @keyframes 6本（全部どこかで使っている）
+     イージング 5本（--ease-deru / --ease-modoru / --ease-men / --ease-kazu
+                    / --ease-tobai＝スクロール量の等倍写像）
+     動きの語彙 8種（うつる・ひらく・のびる・かぞえる・ひかれる
+                    ・ながれる・ずれる・とどまる）＝ P-12 の上限ぴったり。
+                    このうち「かぞえる」だけは JavaScript 側（assets/app.js）にある
+   ========================================================================= */
+
+:root{
+  /* ── 無彩色5段（P-01／R-20）。純黒・純白は使わない（R-01） ── */
+  --g-1:#F1EFE9;  /* 紙 */
+  --g-2:#D9D4C9;  /* 罫・淡い面 */
+  --g-3:#8C867B;  /* 注記 */
+  --g-4:#46413A;  /* 補助の文字 */
+  --g-5:#221F1A;  /* 本文の文字 */
+  --paper:#F1EFE9;
+  --ji-kage:#1B1A22;      /* 暗い章の地（墨紫） */
+  --ji-usu:#E9E5DC;       /* ひとつ沈めた面 */
+
+  /* ── 彩度のある色：役割名で持つ（R-03①／D-05） ── */
+  --accent-omo:#6A3C9E;   /* 主役 */
+  --accent-uke:#6C8C1F;   /* 受け */
+  --accent-chui:#B2471C;  /* 注意 */
+  --bunrui-1:#6A3C9E;
+  --bunrui-2:#6C8C1F;
+  --bunrui-3:#B2471C;
+  --bunrui-4:#2B6E7D;
+
+  /* ── 操作できるものの色は別の名前空間で持つ（P-19） ── */
+  --form-ji:#2E2A33;
+  --form-moji:#F3F1EB;
+  --form-waku:#6A3C9E;
+  --form-usu:#EDE8F3;
+
+  /* ── 透明度は6段だけ。生の端数は1つも書かない（P-02） ── */
+  --a-1:.06; --a-2:.12; --a-3:.28; --a-4:.55; --a-5:.78; --a-6:.88; --a-7:1;
+
+  /* ── 余白：見本の4px刻み（①） ── */
+  --sp-1:4px;  --sp-2:8px;  --sp-3:16px; --sp-4:24px; --sp-5:32px;
+  --sp-6:40px; --sp-7:60px; --sp-8:80px; --sp-9:120px; --sp-10:200px;
+
+  /* ── 級数：見本の比率1.225で7段（②）＋ 表題だけ別枠 ──
+        見出しの clamp は 最小:最大 = 1:1.5 で全部そろえてある（P-09） */
+  --fs-hyodai:clamp(5.4rem, 9vw, 8.1rem);        /* 86.4 → 129.6 */
+  --fs-h1:clamp(1.9rem, 3.17vw, 2.85rem);        /* 30.4 → 45.6 */
+  --fs-h2:clamp(1.55rem, 2.58vw, 2.325rem);      /* 24.8 → 37.2 */
+  --fs-h3:clamp(1.263rem, 2.1vw, 1.894rem);      /* 20.2 → 30.3 */
+  --fs-h4:clamp(1.1rem, 1.83vw, 1.65rem);        /* 17.6 → 26.4 */
+  --fs-lede:18.5px;      /* 導入文。見出しではないので固定 */
+  --fs-body:16.5px;      /* 本文。見本と同じく固定（③） */
+  --fs-note:14.5px;
+  --fs-label:13px;
+
+  /* ── 行間は用途で5段（P-07）。見出しと本文で二極化させる（R-05） ── */
+  --lh-hyodai:1.0; --lh-midashi:1.14; --lh-lede:1.85;
+  --lh-honbun:2.0;   /* ← 見本の主音（実測36回） */
+  --lh-ui:1.4;       --lh-note:1.72;
+
+  /* ── 字間は大きさに連れて変える（P-08）。40px以上は必ず詰める（R-06） ── */
+  --ls-hyodai:-.045em; --ls-h1:-.025em; --ls-h2:-.012em;
+  --ls-h3:.01em; --ls-lede:.05em; --ls-honbun:.08em; --ls-label:.22em;
+
+  /* ── 動きのカーブは4本だけ。1本ずつ名前と持ち場がある（P-11・R-04） ── */
+  --ease-deru:cubic-bezier(.16,.84,.34,1);      /* 出る */
+  --ease-modoru:cubic-bezier(.55,.06,.68,.19);  /* 戻る */
+  --ease-men:cubic-bezier(.62,.02,.2,1);        /* 面・マスク */
+  --ease-kazu:cubic-bezier(.33,1,.68,1);        /* 数が育つ */
+  --ease-tobai:cubic-bezier(0,0,1,1);           /* 等倍。スクロール量をそのまま座標にうつす */
+  --t-iro:.18s; --t-idou:.34s; --t-men:.68s; --t-nyujo:1.15s;
+
+  --stable-lvh:1vh;                              /* P-14／R-09 */
+  --nodo:72px;                                   /* 見開きの「ノド」 */
+  --honbun-haba:34em;                            /* ≒561px＝全角31.5字（③・P-10） */
+}
+
+/* ── 書体 ─────────────────────────────────────────────
+   Fraunces は可変で、opsz（光学サイズ）軸を持つ。大見出しは Display の刻み、
+   本文の欧文は Text の刻みを当てて、同じ家族の中で階層を作る（B-09）。
+   並び順は 欧文 → 和文 → 総称（P-04）。 */
+:root{
+  --f-mi:"Fraunces","Zen Old Mincho",serif;                 /* 見出し */
+  --f-hon:"Fraunces","Zen Kaku Gothic Antique",sans-serif;  /* 本文 */
+  --f-kazu:"Spline Sans Mono","Zen Kaku Gothic Antique",monospace; /* 数字（R-12／P-05） */
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--paper);color:var(--g-5);
+  font-family:var(--f-hon);font-size:var(--fs-body);
+  font-variation-settings:"opsz" 14,"SOFT" 0,"WONK" 0;
+  line-height:var(--lh-honbun);letter-spacing:var(--ls-honbun);
+  font-feature-settings:"palt" 1;                 /* 約物（P-06） */
+  overflow-x:hidden;
+}
+img{display:block;max-width:100%;height:auto}
+a{color:inherit}
+::selection{background:var(--accent-omo);color:var(--g-1)}
+
+/* 数字と欧文のラベルは等幅の欧文へ（R-12／P-05） */
+.n,.t-label,time,.num{font-family:var(--f-kazu);font-feature-settings:"tnum" 1}
+.n{letter-spacing:.01em;font-weight:500}
+
+/* ── 見出しはタグでなくクラスで当てる（P-17） ───────────────── */
+.t-hyodai{font-family:var(--f-mi);font-size:var(--fs-hyodai);line-height:var(--lh-hyodai);
+  letter-spacing:var(--ls-hyodai);font-weight:700;font-variation-settings:"opsz" 144,"SOFT" 20,"WONK" 1}
+.t-h1{font-family:var(--f-mi);font-size:var(--fs-h1);line-height:var(--lh-midashi);
+  letter-spacing:var(--ls-h1);font-weight:700;font-variation-settings:"opsz" 90,"SOFT" 10,"WONK" 0}
+.t-h2{font-family:var(--f-mi);font-size:var(--fs-h2);line-height:1.22;
+  letter-spacing:var(--ls-h2);font-weight:700;font-variation-settings:"opsz" 60,"SOFT" 6}
+.t-h3{font-family:var(--f-mi);font-size:var(--fs-h3);line-height:1.28;
+  letter-spacing:var(--ls-h3);font-weight:700;font-variation-settings:"opsz" 36}
+.t-h4{font-family:var(--f-hon);font-size:var(--fs-h4);line-height:1.3;
+  letter-spacing:var(--ls-h3);font-weight:700}
+.t-lede{font-size:var(--fs-lede);line-height:var(--lh-lede);letter-spacing:var(--ls-lede)}
+.t-body{font-size:var(--fs-body);line-height:var(--lh-honbun);letter-spacing:var(--ls-honbun)}
+.t-label{font-size:var(--fs-label);line-height:var(--lh-ui);letter-spacing:var(--ls-label);
+  text-transform:uppercase;font-weight:500;color:var(--g-3)}
+.w{white-space:nowrap}          /* 文節ごとに包む（P-21／R-19） */
+
+/* ── 骨格：ノドのある見開き（非対称グリッド・R-02） ─────────── */
+.wrap{width:min(1240px,100% - var(--sp-6));margin-inline:auto}
+.spread{display:grid;grid-template-columns:minmax(0,10fr) var(--nodo) minmax(0,7fr);align-items:start}
+.spread--gyaku{grid-template-columns:minmax(0,7fr) var(--nodo) minmax(0,10fr)}
+.hidari{grid-column:1;grid-row:1}
+.nodo{grid-column:2;grid-row:1;justify-self:center;align-self:stretch}
+.migi{grid-column:3;grid-row:1}
+.honbun{max-width:var(--honbun-haba)}   /* 1行の長さ（③・P-10） */
+
+/* ── 章＝地の色の切り替え（P-16／R-18）。どの面にも質感を入れる（A-07／D-17） ── */
+.band{padding-block:var(--sp-9);position:relative;overflow:hidden}
+.band--kami{
+  background-color:var(--paper);
+  background-image:
+    radial-gradient(circle at 18% 12%, rgba(106,60,158,var(--a-1)) 0, transparent 42%),
+    radial-gradient(circle at 84% 78%, rgba(108,140,31,var(--a-1)) 0, transparent 46%),
+    url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.055'/%3E%3C/svg%3E");
+}
+.band--usu{
+  background-color:var(--ji-usu);
+  background-image:
+    linear-gradient(172deg, rgba(106,60,158,var(--a-1)) 0, transparent 58%),
+    radial-gradient(ellipse 70% 40% at 50% 0%, rgba(34,31,26,var(--a-1)) 0, transparent 70%),
+    url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.07'/%3E%3C/svg%3E");
+}
+.band--kage{
+  background-color:var(--ji-kage);color:var(--g-1);
+  background-image:
+    radial-gradient(ellipse 120% 70% at 12% 0%, rgba(106,60,158,var(--a-3)) 0, transparent 62%),
+    radial-gradient(circle at 92% 88%, rgba(43,110,125,var(--a-2)) 0, transparent 48%),
+    url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.11'/%3E%3C/svg%3E");
+}
+.band--kage{--accent-omo:#B79BE0;--accent-uke:#A8C84A;--accent-chui:#E08A5F}
+.band--kage .t-label{color:var(--g-2)}
+.band--kage a{color:var(--g-1)}
+
+/* 章の地に敷く、大きな弧（四角でない形・D-13／D-17） */
+.band__ko{position:absolute;inset-block-start:-18%;inset-inline-end:-14%;
+  inline-size:min(62vw,760px);aspect-ratio:1;border-radius:50%;
+  border:1px solid rgba(106,60,158,var(--a-3));pointer-events:none}
+.band--kage .band__ko{border-color:rgba(241,238,231,var(--a-2))}
+
+/* ── ヘッダ ──────────────────────────────────────────── */
+.head{position:sticky;inset-block-start:0;z-index:30;
+  background:color-mix(in srgb, var(--paper) 88%, transparent);
+  backdrop-filter:saturate(140%) blur(9px);-webkit-backdrop-filter:saturate(140%) blur(9px);
+  border-block-end:1px solid var(--g-2)}
+.head__in{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:var(--sp-5);
+  align-items:center;padding-block:var(--sp-3)}
+.head__na{font-family:var(--f-mi);font-weight:700;font-size:19px;letter-spacing:.02em;
+  text-decoration:none;font-variation-settings:"opsz" 40}
+.head__na .en{display:block;font-family:var(--f-kazu);font-size:11px;letter-spacing:.3em;
+  color:var(--g-3);font-weight:400}
+.nav{display:flex;flex-wrap:wrap;gap:var(--sp-2) var(--sp-5);justify-content:flex-end}
+.nav a{font-size:14px;letter-spacing:.04em;text-decoration:none;padding-block:var(--sp-1);
+  border-block-end:1px solid transparent;
+  transition:border-color var(--t-idou) var(--ease-modoru),color var(--t-idou) var(--ease-modoru)}
+.nav a:hover,.nav a:focus-visible{border-block-end-color:var(--accent-omo);color:var(--accent-omo);
+  transition-duration:var(--t-iro);transition-timing-function:var(--ease-deru)}
+
+/* ── ファーストビュー：全幅の写真の上に、原文を写す宣言を置く ──────
+      絵が最初の1画面のほぼ全部を占める（D-01／D-14）。CTAも煽りも置かない（R-13／P-18） */
+.fv{position:relative;min-block-size:calc(88 * var(--stable-lvh));display:grid;align-items:end;
+  isolation:isolate;overflow:hidden}
+.fv__pic{position:absolute;inset:0;z-index:-2}
+.fv__pic img{inline-size:100%;block-size:100%;object-fit:cover;object-position:58% 50%}
+.fv__maku{position:absolute;inset:0;z-index:-1;
+  background:
+   linear-gradient(96deg, var(--paper) 0 24%, color-mix(in srgb,var(--paper) 72%,transparent) 47%,
+                   color-mix(in srgb,var(--paper) 18%,transparent) 68%, transparent 88%),
+   linear-gradient(0deg, color-mix(in srgb,var(--paper) 62%,transparent) 0, transparent 34%)}
+.fv__hyodai{display:flex;align-items:flex-end;gap:var(--sp-4);margin-block-end:var(--sp-5)}
+.fv__hyodai .ji{display:inline-block}
+.fv__tate{writing-mode:vertical-rl;font-family:var(--f-kazu);font-size:13px;letter-spacing:.34em;
+  color:var(--accent-omo);text-orientation:mixed;block-size:auto;padding-block-end:var(--sp-3)}
+.fv__tate .num{text-combine-upright:all}     /* 縦組みの中の数字（B-02） */
+.fv__lede{max-width:30em}
+.fv__meta{display:flex;flex-wrap:wrap;gap:var(--sp-2) var(--sp-5);margin-block-start:var(--sp-5);
+  padding-block-start:var(--sp-4);border-block-start:1px solid var(--g-2)}
+.fv__scroll{position:absolute;inset-block-end:var(--sp-4);inset-inline-end:0;display:flex;
+  align-items:center;gap:var(--sp-2)}
+.fv__scroll i{display:block;inline-size:1px;block-size:44px;background:var(--g-4);
+  transform-origin:top;animation:k-sujo 2.6s var(--ease-men) infinite}
+
+/* ── 動きの語彙は8つ。1つずつ名前と持ち場がある（P-12 の上限ぴったり） ──────
+     ① うつる（出る）        下書きが清書になる。1字ずつは data-okure でずらす
+     ② ひらく               面が左から開く。高さは切らない
+     ③ のびる               棒が端から伸びる（数値の図）
+     ④ かぞえる             数が0から本当の値まで育つ（数値の図）
+     ⑤ ひかれる             折れ線が引かれる（数値の図）
+     ⑥ ながれる             帯が横に流れる
+     ⑦ ずれる               地と手前で速度が違う（視差）
+     ⑧ とどまる             柱が固定されて、中身だけ変わる                  */
+@keyframes k-utsuru{from{opacity:0;transform:translate3d(0,18px,0)}to{opacity:1;transform:none}}
+@keyframes k-hiraku{from{clip-path:inset(0 100% 0 0)}to{clip-path:inset(0 0 0 0)}}
+@keyframes k-nobiru{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes k-nagareru{from{transform:translate3d(0,0,0)}to{transform:translate3d(-50%,0,0)}}
+@keyframes k-zureru{from{transform:translate3d(0,-4%,0)}to{transform:translate3d(0,4%,0)}}
+@keyframes k-sujo{0%{transform:scaleY(0)}44%{transform:scaleY(1)}100%{transform:scaleY(0)}}
+
+/* ①うつる：下書きが清書になる。1字ずつは data-okure でずらす（B-07） */
+[data-rv]{opacity:0;transform:translate3d(0,18px,0)}
+[data-rv="in"]{animation:k-utsuru var(--t-nyujo) var(--ease-deru) both}
+[data-okure="1"]{animation-delay:.04s}[data-okure="2"]{animation-delay:.13s}
+[data-okure="3"]{animation-delay:.07s}[data-okure="4"]{animation-delay:.21s}
+[data-okure="5"]{animation-delay:.11s}[data-okure="6"]{animation-delay:.29s}
+[data-okure="7"]{animation-delay:.17s}[data-okure="8"]{animation-delay:.36s}
+[data-okure="9"]{animation-delay:.24s}
+/* ②ひらく：面が左から開く。高さは切らない（切ると出る仕掛けが一生発火しない） */
+[data-hira]{clip-path:inset(0 100% 0 0)}
+[data-hira="in"]{animation:k-hiraku var(--t-men) var(--ease-men) both}
+/* ③のびる／④かぞえる：数値の図（D-19） */
+.bar{transform:scaleX(0);transform-origin:left center;
+  transition:transform 1.1s var(--ease-men)}
+[data-rv="in"] .bar,[data-zu="in"] .bar{transform:scaleX(1)}
+.sen{stroke-dasharray:var(--len);stroke-dashoffset:var(--len);
+  transition:stroke-dashoffset 1.5s var(--ease-men)}
+[data-zu="in"] .sen{stroke-dashoffset:0}
+
+/* ── 動きを止めたい人には、最初から「動き終わった状態」で出す（R-10／D-19の但し書き） ── */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;
+    transition-duration:.001ms!important;scroll-behavior:auto!important}
+  [data-rv]{opacity:1!important;transform:none!important;animation:none!important}
+  [data-hira]{clip-path:inset(0 0 0 0)!important;animation:none!important}
+  .bar{transform:scaleX(1)!important}
+  .sen{stroke-dashoffset:0!important}
+  .nagare__in{animation:none!important}
+  .fv__scroll i{animation:none!important;transform:scaleY(1)}
+  .zure > img{animation:none!important;transform:none!important}
+}
+
+/* ⑤ながれる：横に流れる帯。端はマスクで溶かす（P-15／R-11） */
+.nagare{overflow:hidden;
+  -webkit-mask-image:linear-gradient(90deg,transparent,var(--g-5) 8%,var(--g-5) 92%,transparent);
+          mask-image:linear-gradient(90deg,transparent,var(--g-5) 8%,var(--g-5) 92%,transparent);
+  -webkit-mask-size:100% 100%;mask-size:100% 100%;
+  -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat}
+.nagare__in{display:flex;inline-size:max-content;gap:var(--sp-7);
+  animation:k-nagareru 46s var(--ease-tobai) infinite}
+.nagare__item{display:flex;align-items:baseline;gap:var(--sp-2);white-space:nowrap;
+  font-size:14px;letter-spacing:.06em;color:var(--g-4)}
+.band--kage .nagare__item{color:var(--g-2)}
+.nagare__item .n{color:var(--accent-omo);font-size:17px}
+.band--kage .nagare__item .n{color:var(--accent-omo)}
+
+/* ⑥ずれる：地と手前で速度が違う（スクロール連動・JSは1行も増やさない） */
+@supports (animation-timeline: view()){
+  .zure > img{animation:k-zureru var(--ease-tobai) both;animation-timeline:view();
+    animation-range:cover 0% cover 100%}
+}
+/* ⑦とどまる：ノドの柱が固定されて、中身だけ変わる */
+.nodo__hashira{position:sticky;inset-block-start:112px;display:flex;flex-direction:column;
+  align-items:center;gap:var(--sp-3)}
+.nodo__sen{inline-size:1px;flex:1;min-block-size:180px;
+  background:linear-gradient(180deg,var(--g-2),color-mix(in srgb,var(--accent-omo) 55%,transparent),var(--g-2))}
+.nodo__ji{writing-mode:vertical-rl;font-family:var(--f-kazu);font-size:13px;letter-spacing:.3em;
+  color:var(--g-3)}
+.nodo__ji .num{text-combine-upright:all}
+
+/* ── 「印」＝四角でない形（D-13／B-10：名前を形にする） ────────────
+      「原文」を写すという名前を、印（はん）の八角形として構造に埋めてある */
+.in{display:inline-grid;place-items:center;inline-size:84px;aspect-ratio:1;
+  clip-path:polygon(30% 0,70% 0,100% 30%,100% 70%,70% 100%,30% 100%,0 70%,0 30%);
+  background:var(--accent-omo);color:var(--g-1);
+  font-family:var(--f-hon);font-size:13px;letter-spacing:.1em;text-align:center;line-height:1.35;font-weight:700}
+.in--dai{inline-size:132px;font-size:15px}
+
+/* ── 記事一覧：同じ形のカードを並べない（D-08） ─────────────── */
+.ichiran{display:grid;gap:1px;background:var(--g-2);margin-block-start:var(--sp-7)}
+.ichiran__item{background:var(--paper);display:grid;
+  grid-template-columns:minmax(0,64px) minmax(0,1fr);gap:var(--sp-4);
+  padding:var(--sp-5) var(--sp-4);text-decoration:none;
+  transition:background var(--t-idou) var(--ease-modoru)}
+.ichiran__item:hover,.ichiran__item:focus-visible{background:var(--ji-usu);
+  transition-timing-function:var(--ease-deru)}
+.ichiran__no{font-family:var(--f-kazu);font-size:26px;color:var(--accent-omo);line-height:1}
+.ichiran__ttl{font-family:var(--f-mi);font-weight:700;font-size:20px;line-height:1.3;
+  letter-spacing:.005em;font-variation-settings:"opsz" 36}
+.ichiran__sub{font-size:14px;color:var(--g-4);line-height:var(--lh-note);margin-block-start:var(--sp-2)}
+.ichiran__moto{font-family:var(--f-kazu);font-size:13px;letter-spacing:.1em;color:var(--accent-uke);
+  margin-block-start:var(--sp-2)}
+/* 1つおきに、写真つきの大きい形にする（形が2種類になる） */
+.ichiran__item--e{grid-template-columns:minmax(0,200px) minmax(0,1fr);align-items:center}
+.ichiran__item--e .ichiran__no{position:absolute}
+.ichiran__e{overflow:hidden;aspect-ratio:4/3}
+.ichiran__e img{inline-size:100%;block-size:100%;object-fit:cover}
+
+/* ── 図まわり ────────────────────────────────────────── */
+.zu{margin-block:var(--sp-7);position:relative}
+.zu__waku{background:var(--paper);border:1px solid var(--g-2);padding:var(--sp-5) var(--sp-4)}
+.band--kage .zu__waku{background:rgba(241,238,231,var(--a-1));border-color:rgba(241,238,231,var(--a-2))}
+.zu__ttl{font-size:15px;font-weight:700;letter-spacing:.04em;margin-block-end:var(--sp-4)}
+.zu__cap{font-size:13.5px;line-height:var(--lh-note);color:var(--g-3);margin-block-start:var(--sp-3)}
+.band--kage .zu__cap{color:var(--g-2)}
+.zu svg{inline-size:100%;block-size:auto;display:block}
+.zu__gyo{display:grid;grid-template-columns:minmax(0,8.5em) minmax(0,1fr) minmax(0,6.4em);
+  gap:var(--sp-3);align-items:center;font-size:13.5px;margin-block-end:var(--sp-3)}
+.zu__moji{letter-spacing:.02em;line-height:1.35}
+.zu__tai{block-size:15px;background:var(--g-2);position:relative;overflow:hidden}
+.zu__tai i{position:absolute;inset:0;display:block;transform-origin:left center}
+.zu__atai{font-family:var(--f-kazu);font-size:14px;text-align:right;font-weight:500}
+
+/* ── 注記のかたまり（B-12：先に断る） ─────────────────────── */
+.note{border-inline-start:3px solid var(--accent-chui);padding:var(--sp-3) 0 var(--sp-3) var(--sp-4);
+  font-size:var(--fs-note);line-height:var(--lh-note);color:var(--g-4);margin-block:var(--sp-5)}
+.band--kage .note{color:var(--g-2)}
+.note b{font-weight:700;color:var(--accent-chui)}
+.band--kage .note b{color:var(--accent-chui)}
+
+/* 出どころ（法定の表示なので、本文と同じ読みやすさで置く） */
+.src{list-style:none;font-size:13.5px;line-height:var(--lh-note);color:var(--g-4);
+  margin-block:var(--sp-4);display:grid;gap:var(--sp-2)}
+.src li{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:var(--sp-3)}
+.src .tag{font-family:var(--f-kazu);font-size:13px;letter-spacing:.12em;color:var(--accent-omo);
+  padding-block-start:3px}
+.src a{color:var(--g-4);text-underline-offset:3px}
+
+/* 箇条書き */
+.cl{list-style:none;display:grid;gap:var(--sp-3);margin-block:var(--sp-5)}
+.cl__item{display:grid;grid-template-columns:minmax(0,1.6em) minmax(0,1fr);gap:var(--sp-2);
+  font-size:var(--fs-body);line-height:1.8;letter-spacing:var(--ls-honbun)}
+.cl__item::before{content:"";inline-size:9px;block-size:9px;margin-block-start:.72em;
+  background:var(--accent-uke);clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.cl--kazu{counter-reset:c}
+.cl--kazu .cl__item{grid-template-columns:minmax(0,2.4em) minmax(0,1fr)}
+.cl--kazu .cl__item::before{counter-increment:c;content:counter(c);inline-size:auto;block-size:auto;
+  background:none;clip-path:none;font-family:var(--f-kazu);font-size:13px;color:var(--accent-omo);
+  margin-block-start:.34em}
+
+/* ── 記事ページ ───────────────────────────────────────── */
+.kiji__atama{padding-block:var(--sp-8) var(--sp-6)}
+.kiji__pic{position:relative;overflow:hidden;margin-block:var(--sp-7)}
+.kiji__pic img{inline-size:100%;block-size:100%;object-fit:cover}
+.kiji__pic--zen{margin-inline:calc(50% - 50vw);inline-size:100vw;max-inline-size:100vw;
+  block-size:min(58vh,520px)}
+.kiji__pic--kata{block-size:min(46vh,420px);
+  clip-path:polygon(0 0,100% 0,100% 86%,0 100%)}
+.kiji__pic--maru{aspect-ratio:1;border-radius:50%;inline-size:min(340px,76%)}
+.kiji__cap{font-size:13px;color:var(--g-3);line-height:var(--lh-note);margin-block-start:var(--sp-2)}
+.honbun>*+*{margin-block-start:var(--sp-4)}
+.honbun .t-h2{margin-block-start:var(--sp-8)}
+.honbun .t-h3{margin-block-start:var(--sp-6)}
+.honbun .t-body+.t-body{margin-block-start:var(--sp-4)}
+.mokuji{border-block:1px solid var(--g-2);padding-block:var(--sp-4);margin-block:var(--sp-6);
+  display:grid;gap:var(--sp-2)}
+.mokuji a{font-size:14px;text-decoration:none;color:var(--g-4);
+  transition:color var(--t-iro) var(--ease-deru)}
+.mokuji a:hover{color:var(--accent-omo)}
+
+/* 読書の進み具合（B-14・JSは増やさない） */
+.susumi{position:fixed;inset-block-start:0;inset-inline:0;block-size:2px;z-index:40;
+  background:var(--accent-omo);transform-origin:left center;transform:scaleX(0)}
+@supports (animation-timeline: scroll()){
+  .susumi{animation:k-nobiru var(--ease-tobai) both;animation-timeline:scroll(root)}
+}
+
+/* ── 広告の扱い（S-11／S-12） ───────────────────────────── */
+.koukoku{padding:var(--sp-5) var(--sp-4);margin-block:var(--sp-7)}
+.koukoku__ji{font-family:var(--f-kazu);font-size:13px;letter-spacing:.2em;color:var(--accent-chui);
+  margin-block-end:var(--sp-3)}
+.koukoku__t{font-size:14px;line-height:var(--lh-note);color:var(--g-4)}
+
+/* ── ボタン・入力（色は別名前空間から／P-19） ──────────────── */
+.btn{display:inline-flex;align-items:center;gap:var(--sp-2);
+  background:var(--form-ji);color:var(--form-moji);text-decoration:none;
+  padding:var(--sp-3) var(--sp-5);font-size:14.5px;letter-spacing:.06em;
+  border:1px solid var(--form-ji);
+  transition:background var(--t-iro) var(--ease-deru),color var(--t-iro) var(--ease-deru),
+             border-color var(--t-iro) var(--ease-deru)}
+.btn:hover,.btn:focus-visible{background:var(--form-waku);border-color:var(--form-waku)}
+.btn--su{background:none;color:var(--g-5);border-color:var(--g-3)}
+.btn--su:hover{background:var(--form-usu);color:var(--form-waku);border-color:var(--form-waku)}
+.field{display:grid;gap:var(--sp-2);margin-block-end:var(--sp-5)}
+.field label{font-size:13.5px;letter-spacing:.04em;font-weight:700}
+.field input,.field textarea,.field select{
+  font-family:var(--f-hon);font-size:16px;line-height:1.7;padding:var(--sp-3);
+  background:var(--paper);color:var(--g-5);border:1px solid var(--g-3);
+  transition:border-color var(--t-iro) var(--ease-deru)}
+.field input:focus,.field textarea:focus,.field select:focus{outline:2px solid var(--form-waku);
+  outline-offset:1px;border-color:var(--form-waku)}
+:focus-visible{outline:2px solid var(--accent-omo);outline-offset:2px}
+
+/* ── フッター（3行以上・リンク3つ以上／D-11） ───────────────── */
+.foot{background:var(--ji-kage);color:var(--g-1);padding-block:var(--sp-8) var(--sp-6);
+  background-image:radial-gradient(ellipse 90% 60% at 8% 0%, rgba(106,60,158,var(--a-3)) 0, transparent 60%)}
+.foot__in{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,3fr) minmax(0,4fr);gap:var(--sp-7)}
+.foot h2{font-family:var(--f-mi);font-size:21px;font-weight:700;letter-spacing:.02em;
+  margin-block-end:var(--sp-3)}
+.foot p{font-size:13.5px;line-height:var(--lh-note);color:var(--g-2)}
+.foot ul{list-style:none;display:grid;gap:var(--sp-2)}
+.foot a{font-size:13.5px;text-decoration:none;color:var(--g-2);
+  transition:color var(--t-iro) var(--ease-deru)}
+.foot a:hover,.foot a:focus-visible{color:#C3A9E8}
+.foot__shita{margin-block-start:var(--sp-7);padding-block-start:var(--sp-4);
+  border-block-start:1px solid rgba(241,238,231,var(--a-2));
+  display:flex;flex-wrap:wrap;gap:var(--sp-2) var(--sp-5);font-size:13px;color:var(--g-2)}
+
+.tobu{position:absolute;inline-size:1px;block-size:1px;overflow:hidden;clip-path:inset(50%)}
+.tobu:focus{position:static;inline-size:auto;block-size:auto;clip-path:none;
+  display:inline-block;padding:var(--sp-2) var(--sp-3);background:var(--accent-omo);color:var(--g-1)}
+
+/* ルビ（B-01） */
+ruby rt{font-size:.45em;letter-spacing:0;font-weight:400;color:var(--g-4)}
+
+/* ── 狭い画面（実機375px） ────────────────────────────── */
+@media (max-width:900px){
+  .migi__in{position:static}
+  .mokuji--tate{border-inline-start:0;border-block:1px solid var(--g-2);padding:var(--sp-4) 0}
+  :root{--nodo:0px;--sp-9:64px;--sp-10:96px}
+  .wrap{width:min(1240px,100% - var(--sp-5))}
+  .spread,.spread--gyaku{grid-template-columns:minmax(0,1fr)}
+  .hidari,.migi{grid-column:1;grid-row:auto}
+  .migi{margin-block-start:var(--sp-6)}
+  .nodo{display:none}
+  .foot__in{grid-template-columns:minmax(0,1fr);gap:var(--sp-6)}
+  .head__in{grid-template-columns:minmax(0,1fr);gap:var(--sp-3)}
+  .nav{justify-content:flex-start}
+  .fv{min-block-size:calc(92 * var(--stable-lvh))}
+  .fv__maku{background:
+    linear-gradient(178deg, var(--paper) 0 30%, color-mix(in srgb,var(--paper) 76%,transparent) 54%,
+                    color-mix(in srgb,var(--paper) 30%,transparent) 78%, transparent 100%)}
+  .ichiran__item--e{grid-template-columns:minmax(0,1fr)}
+  .ichiran__item--e .ichiran__e{aspect-ratio:16/9}
+  .zu__gyo{grid-template-columns:minmax(0,1fr);gap:var(--sp-1)}
+  .zu__atai{text-align:left}
+  .kiji__pic--maru{inline-size:min(340px,100%)}
+  .band__ko{inline-size:min(96vw,520px);inset-inline-end:-40%}
+}
+
+/* ── 紙に印刷しても崩れない（B-15） ──────────────────────── */
+@media print{
+  .head,.nav,.fv__scroll,.susumi,.nagare,.koukoku{display:none}
+  body{background:none;color:#221F1A;font-size:10.5pt}
+  .band{padding-block:12mm;background:none!important}
+  .band--kage{color:#221F1A}
+  .zu,.note,.ichiran__item,figure{break-inside:avoid}
+  .spread,.spread--gyaku{grid-template-columns:minmax(0,1fr)}
+  [data-rv],[data-hira]{opacity:1!important;transform:none!important;clip-path:none!important}
+  .foot{background:none;color:#221F1A}
+  a[href^="http"]::after{content:" (" attr(href) ")";font-size:8pt;color:#46413A}
+}
+
+/* ── ここから下は、上で決めた道具を使って置き場所を作る部分 ───────── */
+.fv__kara{font-family:var(--f-mi);font-weight:700;letter-spacing:.16em;color:var(--accent-omo);
+  margin-block-end:var(--sp-2);font-variation-settings:"opsz" 30}
+.fv__in .t-lede{color:var(--g-4)}
+
+/* 三つの約束（見開きの右側） */
+.yakusoku{display:grid;gap:var(--sp-5);counter-reset:y}
+.yakusoku__item{display:grid;grid-template-columns:minmax(0,2.6em) minmax(0,1fr);gap:var(--sp-3);
+  padding-block-end:var(--sp-5);border-block-end:1px solid var(--g-2)}
+.yakusoku__item:last-child{border-block-end:0;padding-block-end:0}
+.yakusoku__no{font-family:var(--f-kazu);font-size:13px;letter-spacing:.14em;color:var(--accent-omo);
+  padding-block-start:.36em}
+.yakusoku--dai{gap:var(--sp-4)}
+.yakusoku--dai .yakusoku__item{grid-template-columns:minmax(0,clamp(96px,10.4vw,164px)) minmax(0,1fr);gap:var(--sp-4);
+  align-items:baseline}
+.yakusoku--dai .yakusoku__no{font-size:clamp(1.9rem,3.17vw,2.85rem);letter-spacing:-.02em;padding:0;
+  text-align:right;line-height:1}
+.yakusoku--dai .yakusoku__t{font-size:14.5px;line-height:1.75}
+.yakusoku__t{font-size:15.5px;line-height:1.85;letter-spacing:.05em}
+.yakusoku__t b{font-weight:700}
+
+/* 縦組みの章名（B-02） */
+.tate{writing-mode:vertical-rl;font-family:var(--f-mi);font-weight:700;letter-spacing:.2em;
+  font-size:clamp(1.1rem,1.83vw,1.65rem);line-height:1;
+  border-inline-end:1px solid var(--g-2);padding-inline-end:var(--sp-3);block-size:max-content}
+.tate .num{text-combine-upright:all;font-family:var(--f-kazu);font-size:.62em;color:var(--accent-omo)}
+
+/* 分数ページャ（B-11） */
+.bunsu{font-family:var(--f-kazu);font-size:13px;letter-spacing:.14em;color:var(--g-3)}
+.bunsu b{color:var(--accent-omo);font-weight:500}
+
+/* 章の頭 */
+.shou{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:var(--sp-5);
+  align-items:start;margin-block-end:var(--sp-7)}
+.shou__ji{max-width:32em}
+
+/* 更新の記録 */
+.kiroku{list-style:none;display:grid;gap:var(--sp-3)}
+.kiroku li{display:grid;grid-template-columns:minmax(0,7.4em) minmax(0,1fr);gap:var(--sp-3);
+  font-size:14px;line-height:1.75;padding-block-end:var(--sp-3);border-block-end:1px solid var(--g-2)}
+.band--kage .kiroku li{border-block-end-color:rgba(241,238,231,var(--a-2))}
+.kiroku time{font-size:13px;letter-spacing:.08em;color:var(--accent-omo);padding-block-start:.28em}
+.band--kage .kiroku time{color:var(--accent-omo)}
+
+/* 写真の帯（背景として敷いて、上に文字を乗せる置き方） */
+.shashin-obi{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,3fr) minmax(0,4fr);
+  gap:var(--sp-1);margin-block-start:var(--sp-7)}
+.shashin-obi figure{position:relative;overflow:hidden;aspect-ratio:4/5}
+.shashin-obi figure:nth-child(2){aspect-ratio:3/5;align-self:end}
+.shashin-obi figure:nth-child(3){aspect-ratio:5/4;align-self:center}
+.shashin-obi img{inline-size:100%;block-size:100%;object-fit:cover}
+.shashin-obi figcaption{position:absolute;inset-block-end:0;inset-inline:0;
+  padding:var(--sp-4) var(--sp-3) var(--sp-3);font-size:13px;line-height:1.55;color:var(--g-1);
+  background:linear-gradient(0deg,rgba(27,26,34,var(--a-6)) 0,transparent 100%)}
+
+/* 資料の表（罫だけ・箱にしない） */
+.hyo{inline-size:100%;border-collapse:collapse;font-size:14.5px;line-height:1.7;margin-block:var(--sp-5)}
+.hyo caption{text-align:left;font-size:13px;color:var(--g-3);padding-block-end:var(--sp-3)}
+.hyo th,.hyo td{text-align:left;padding:var(--sp-3) var(--sp-3) var(--sp-3) 0;
+  border-block-end:1px solid var(--g-2);vertical-align:top}
+.hyo thead th{font-size:13px;letter-spacing:.14em;color:var(--g-3);font-weight:500;
+  font-family:var(--f-kazu);border-block-end-color:var(--g-3)}
+.hyo tbody th{font-weight:700;inline-size:9.5em}
+.band--kage .hyo th,.band--kage .hyo td{border-block-end-color:rgba(241,238,231,var(--a-2))}
+.hyo .n{white-space:nowrap}
+
+.spread--tsuisu{align-items:stretch}
+.migi__in{position:sticky;inset-block-start:112px}
+.mokuji--tate{border:0;border-inline-start:1px solid var(--g-2);padding:0 0 0 var(--sp-4);
+  margin:0;display:grid;gap:var(--sp-3)}
+.mokuji--tate a{font-size:14.5px;line-height:1.6;letter-spacing:.03em}
+.mokuji--tate .t-label{color:var(--g-4);margin-block-end:var(--sp-2)}
+
+/* 記事の頭の、資料カード（見開きの右ページ） */
+.moto{border-block-start:2px solid var(--accent-omo);padding-block-start:var(--sp-4);display:grid;gap:var(--sp-3)}
+.moto dl{display:grid;grid-template-columns:minmax(0,5.6em) minmax(0,1fr);gap:var(--sp-2) var(--sp-3);
+  font-size:13.5px;line-height:1.7;margin:0}
+.moto dt{color:var(--g-4);font-family:var(--f-kazu);font-size:13px;letter-spacing:.12em;
+  padding-block-start:.3em}
+.moto dd{margin:0}
+.moto__in{justify-self:start;margin-block-start:var(--sp-3)}
+
+/* 記事の下の「次に読むもの」 */
+.tsugi{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1px;background:var(--g-2);
+  margin-block-start:var(--sp-8)}
+.tsugi a{background:var(--paper);padding:var(--sp-5) var(--sp-4);text-decoration:none;display:grid;gap:var(--sp-2);
+  transition:background var(--t-iro) var(--ease-deru)}
+.tsugi a:hover{background:var(--ji-usu)}
+.tsugi .t-label{color:var(--g-3)}
+.tsugi strong{font-family:var(--f-mi);font-size:17px;font-weight:700;line-height:1.4}
+
+/* 固定ページの目次と本文 */
+.kotei .honbun{max-width:var(--honbun-haba)}
+.kotei dl{display:grid;gap:var(--sp-4);margin-block:var(--sp-5)}
+.kotei dt{font-weight:700;font-size:15.5px;letter-spacing:.04em}
+.kotei dd{font-size:var(--fs-body);line-height:1.85;letter-spacing:var(--ls-honbun);
+  padding-inline-start:var(--sp-4);border-inline-start:1px solid var(--g-2)}
+
+@media (max-width:900px){
+  .shashin-obi{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--sp-1)}
+  .shashin-obi figure:nth-child(3){grid-column:1 / -1;aspect-ratio:16/9}
+  .tsugi{grid-template-columns:minmax(0,1fr)}
+  .shou{grid-template-columns:minmax(0,1fr)}
+  .tate{writing-mode:horizontal-tb;border-inline-end:0;border-block-end:1px solid var(--g-2);
+    padding-inline-end:0;padding-block-end:var(--sp-3)}
+  .hyo{font-size:13.5px}
+  .hyo tbody th{inline-size:7.4em}
+}
+
+/* SVGの中の棒は、塗りの箱を基準に伸ばす（これを書かないと画面全体が基準になって飛ぶ） */
+svg .bar{transform-box:fill-box;transform-origin:left center}
+svg .sen{transform-box:fill-box}
+
+/* ── 目盛りのある図は、文字をHTML側に置く ────────────────────
+   SVGの中に文字を入れると、375pxの実機で6px前後まで縮んで読めなくなる。
+   軸・帯・目盛りだけをHTMLで組み、文字は本文と同じ仕組みで出す。 */
+.jiku{position:relative;margin-block:var(--sp-4) var(--sp-5)}
+.jiku__me{position:absolute;inset-block:0;inline-size:1px;background:var(--g-2);inset-block-start:0}
+.band--kage .jiku__me{background:rgba(241,238,231,var(--a-2))}
+.jiku__gyo{position:relative;block-size:38px;margin-block-end:var(--sp-2)}
+.jiku__bar{position:absolute;inset-block:4px;display:flex;align-items:center;
+  padding-inline:var(--sp-3);white-space:nowrap}
+.jiku__bar i{position:absolute;inset:0;transform-origin:left center}
+.jiku__bar span{font-size:13.5px;letter-spacing:.02em;position:relative}
+.jiku__me-ji{display:flex;justify-content:space-between;margin-block-start:var(--sp-2);
+  font-family:var(--f-kazu);font-size:13px;color:var(--g-3)}
+.band--kage .jiku__me-ji{color:var(--g-2)}
+.jiku__me-ji span{inline-size:0;overflow:visible;white-space:nowrap;transform:translateX(-50%)}
+.jiku__me-ji span:first-child{transform:none}
+.jiku__me-ji span:last-child{transform:translateX(-100%)}
+
+/* 折れ線の図：線だけSVGで描き、目印の文字はHTMLで重ねる */
+.sen-zu{position:relative}
+.sen-zu svg{display:block;inline-size:100%;block-size:auto}
+.sen-zu__fuda{position:absolute;font-size:13px;line-height:1.4;letter-spacing:.02em;
+  max-inline-size:12em}
+.sen-zu__fuda b{display:block;font-family:var(--f-kazu);font-size:14px;color:var(--accent-uke)}
+.sen-zu__jiku{display:flex;justify-content:space-between;margin-block-start:var(--sp-2);
+  font-family:var(--f-kazu);font-size:13px;color:var(--g-3)}
+.band--kage .sen-zu__jiku{color:var(--g-2)}
+
+/* 並びの図（成分表示） */
+.narabi{display:grid;gap:var(--sp-3);margin-block:var(--sp-4)}
+.narabi__dan{padding:var(--sp-4);position:relative}
+.narabi__dan--ue{background:color-mix(in srgb,var(--accent-omo) 12%,transparent)}
+.narabi__dan--shita{background:color-mix(in srgb,var(--bunrui-4) 12%,transparent)}
+.narabi__t{font-size:13.5px;line-height:1.6;margin-block-end:var(--sp-3)}
+.narabi__t b{font-weight:700}
+.narabi__hako{display:flex;gap:6px;align-items:flex-end;block-size:40px}
+.narabi__hako i{display:block;block-size:100%;transform-origin:left center}
+.zu__tai--han{overflow:visible;background:none}
+.zu__tai--han i.bar{position:absolute;inset-block:0;inset-inline-end:auto;transform-origin:left center}
+.zu__tai--han .me{position:absolute;inset-block:-6px;inline-size:1px;background:var(--g-2)}
+.band--kage .zu__tai--han .me{background:rgba(241,238,231,var(--a-2))}
+.zu__meji{display:flex;justify-content:space-between;font-family:var(--f-kazu);font-size:13px;
+  color:var(--g-3);margin-block-start:var(--sp-2)}
+.band--kage .zu__meji{color:var(--g-2)}
+
+/* 目次から飛んだとき、見出しが固定ヘッダの下に隠れないようにする */
+:where(h1,h2,h3,[id]){scroll-margin-block-start:112px}
+.zu__atai{white-space:nowrap}
+
+/* 縦の刻みを、役割ごとに鳴らし分ける（値としてあっても、鳴っていなければリズムにならない） */
+.honbun .t-h2 + .t-body{margin-block-start:var(--sp-5)}
+.honbun .note + .t-body{margin-block-start:var(--sp-6)}
+.honbun .cl{margin-block:var(--sp-6) var(--sp-5)}
+.honbun .t-body + .note{margin-block-start:var(--sp-7)}
+
+/* ── FVを組み写真にする（1枚では素材の量が足りず、見本に見劣りするため） ── */
+.fv{background:var(--paper);
+  background-image:
+   radial-gradient(circle at 6% 8%, rgba(106,60,158,var(--a-2)) 0, transparent 44%),
+   radial-gradient(circle at 88% 92%, rgba(108,140,31,var(--a-2)) 0, transparent 40%),
+   url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.06'/%3E%3C/svg%3E")}
+.fv__in{display:grid;grid-template-columns:minmax(0,10fr) minmax(0,9fr);gap:var(--sp-8);
+  align-items:center;padding-block:var(--sp-7) var(--sp-8)}
+.fv__hidari{min-inline-size:0}
+.fv__kumi{position:relative;min-inline-size:0;align-self:stretch;display:flex;align-items:center}
+.fv__kumi-a{position:relative;inline-size:78%;margin-inline-start:auto;aspect-ratio:4/5;
+  overflow:hidden;clip-path:polygon(0 0,100% 0,100% 100%,0 92%)}
+.fv__kumi-a img{inline-size:100%;block-size:100%;object-fit:cover}
+.fv__kumi-b{position:absolute;inset-block-end:6%;inset-inline-start:-14%;inline-size:52%;
+  aspect-ratio:5/4;overflow:hidden;border-radius:50%}
+.fv__kumi-b img{inline-size:100%;block-size:100%;object-fit:cover}
+.fv__kumi-c{position:absolute;inset-block-start:4%;inset-inline-start:0;inline-size:84px;aspect-ratio:1}
+.fv__cap{position:absolute;inset-block-end:-30px;inset-inline-end:0;font-size:13px;color:var(--g-3)}
+
+/* 章の頭に敷く、全幅の写真（地に敷いて上に文字を乗せる置き方） */
+.shiki{position:relative;isolation:isolate;min-block-size:calc(66 * var(--stable-lvh));
+  display:grid;align-items:end;overflow:hidden}
+.shiki__pic{position:absolute;inset:0;z-index:-2}
+.shiki__pic img{inline-size:100%;block-size:100%;object-fit:cover;object-position:50% 56%}
+.shiki__maku{position:absolute;inset:0;z-index:-1;
+  background:linear-gradient(8deg, rgba(27,26,34,var(--a-6)) 0 22%, rgba(27,26,34,var(--a-5)) 52%, rgba(27,26,34,var(--a-3)) 100%)}
+.shiki__in{padding-block:var(--sp-8) var(--sp-7);color:var(--g-1)}
+.shiki__in .t-h2{color:var(--g-1)}
+.shiki__in .t-lede{color:var(--g-2);max-width:32em;margin-block-start:var(--sp-4)}
+.shiki__cap{font-size:13px;color:var(--g-2);margin-block-start:var(--sp-4)}
+.shiki__cap a{color:var(--g-2)}
+
+@media (max-width:900px){
+  .fv__in{grid-template-columns:minmax(0,1fr);gap:var(--sp-7);align-items:start;
+    padding-block:var(--sp-6) var(--sp-8)}
+  .fv__kumi-a{inline-size:86%;margin-inline-start:0;margin-inline-end:auto}
+  .fv__kumi-b{inset-inline-start:auto;inset-inline-end:-6%;inline-size:46%}
+  .fv__cap{position:static;margin-block-start:var(--sp-5)}
+  .shiki{min-block-size:calc(58 * var(--stable-lvh))}
+}
+
+/* 広告についての開示は、読む人が読んでいるその場所で見えるように、本文の手前に置く */
+.kaiji{background:var(--ji-usu);border-block-end:1px solid var(--g-2);
+  font-size:13px;line-height:1.6;letter-spacing:.03em;color:var(--g-4)}
+.kaiji > span{display:block;padding-block:var(--sp-2);
+  width:min(1240px,100% - var(--sp-6));margin-inline:auto}
+.kaiji b{font-family:var(--f-hon);font-size:13px;letter-spacing:.1em;color:var(--accent-chui);
+  font-weight:500;margin-inline-end:var(--sp-3)}
+.koukoku{border:1px solid var(--g-2);background:var(--ji-usu)}
+
+/* 表の見出しと短いラベルは、語の途中で折らない */
+.hyo tbody th{white-space:nowrap}
+/* 本文の1文字残しを減らす（折れてはいけない場所は .w の文節ロックで押さえてある） */
+.t-body,.t-lede,.note,.zu__cap,.cl__item,.yakusoku__t,.ichiran__sub{text-wrap:pretty}
